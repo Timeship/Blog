@@ -16,10 +16,10 @@ class RegistrationForm(Form):
     email = StringField('Email',validators=[Required(),Length(1,64),Email()])
     username = StringField('Username',validators=[Required(),Length(1,64),Regexp('^[A-Za-z][A-Za-z0-9_.]*$',0,'Usernames must have only letters,numbers,dots or underscores')])
     password = PasswordField('Password',validators=[Required()])
-    password_confirm = PasswordField('Password_confirm',validators=[Required(),EqualTo('password',message='password must match')])
+    password_confirm = PasswordField('Password confirm',validators=[Required(),EqualTo('password',message='password must match')])
     submit = SubmitField('Register')
 
-    def validata_email(self,field):
+    def validate_email(self,field):
         if User.query.filter_by(email=field.data).first():
             raise ValidationError('Email already registered')
 

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Blog - confirm your account {% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h1>
+        Hello,{{current_user.username}}!
+    </h1>
+    <h3>You have not confirmed your account yet</h3>
+    <p>
+        Before you can access the site you need to confirm your account.
+        check your inbox,you should have received an email with a confirmation link.
+    </p>
+    <p>
+        need another confirm email?
+        <a href="{{url_for('auth.resend_confirmation')}}">Click Here</a>
+    </p>
+</div>
+{% endblock %}

@@ -6,8 +6,21 @@ from . import auth
 from .. import db
 from ..models import User
 from .forms import LoginForm,RegistrationForm
-from ..email import send_email
+from ..email import send_mail
 from flask.ext.login import current_user
+
+@auth.before_app_request
+def before_request():
+    if current_user.is_authenticated\
+       and not current_user.confirmed\
+       and request.endpoint[:5]!='auth.':
+        return redirect(url_for('auth.unconfirmed'))
+
+@auth.route('/unconfirmed')
+def unconfirmed():
+    if current_user.is_anonymous or current_user.confirmed:
+        return redirect(url_for('main.index'))
+    return render_template('auth/unconfirmed.html')
 
 '''登陆'''
 @auth.route('/login',methods=['GET','POST'])
@@ -38,11 +51,11 @@ def register():
         db.session.add(user)
         db.session.commit()
         token = user.generate_confirmation_token()
-        send_email(user.email,'Confirm your account','auth/email/confirm',user=user,token=token)
+        send_mail(user.email,'Confirm your account','auth/email/confirm',user=user,token=token)
         flash('A confirmation email has been sent to you by email')
         #flash('you can now login.')
-        #return redirect(url_for('auth.login'))
-        return redirect(url_for('main.index'))
+        return redirect(url_for('auth.login'))
+        #return redirect(url_for('main.index'))
     return render_template('auth/register.html',form=form)
 
 '''确认用户的账户'''
@@ -57,6 +70,14 @@ def confirm(token):
         flash('The confirmation link is Invalid or has expired.')
     return redirect(url_for('main.index'))
 
+'''重新发送账户确认邮件'''
+@auth.route('/confirm')
+@login_required
+def resend_confirmation():
+    token = current_user.generate_confirmation_token()
+    send_mail(current_user.email,'Confirm your account','auth/email/confirm',user=current_user,token=token)
+    flash('A confirmation email has been sent to you by email')
+    return redirect(url_for('main.index'))
 
 
 
