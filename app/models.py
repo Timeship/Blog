@@ -5,7 +5,7 @@ from datetime import datetime
 from flask.ext.login import UserMixin,AnonymousUserMixin
 from werkzeug.security import generate_password_hash,check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
-from flask import current_app
+from flask import current_app,request
 from . import login_manager
 from .import db
 
@@ -59,11 +59,10 @@ class User(UserMixin,db.Model):
     about_me = db.Column(db.Text()) #db.Text不需要像db.String那样指定最大长度
     member_since = db.Column(db.DateTime(),default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(),default=datetime.utcnow)
+    avatar_hash = db.Column(db.String(32))
 
     def __repr__(self):
         return '<Role %r>'%self.username
-
-    #password_hash = db.Column(db.String(128))
 
     def __init__(self,**kwargs):
         super(User,self).__init__(**kwargs)
@@ -72,12 +71,17 @@ class User(UserMixin,db.Model):
                 self.role = Role.query.filter_by(permissions=0xff).first()
             if self.role is None:
                 self.role = Role.query.filter_by(default=True).first()
-        #if self.email is not None and self.avatar_hash is None:
-        #    slef.avatar_hash = hashlib.md5(self.emial.encode('utf-8')).hexdigest()
+        if self.email is not None and self.avatar_hash is None:
+            self.avatar_hash = hashlib.md5(self.emial.encode('utf-8')).hexdigest()
 
-
-
-
+    '''生成头像'''
+    def gravatar(self,size=100,default='identicon',rating='g'):
+        if request.is_secure:
+            url = 'https://secure.gravator.com/avatar'
+        else:
+            url = 'http://www.gravatar.com/avatar'
+        hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
+        return '{url}/{hash}?s = {size}&d={default}&r={rating}'.format(url=url,hash=hash,size=size,default=default,rating=rating)
 
     @property
     def password(self):
@@ -109,6 +113,7 @@ class User(UserMixin,db.Model):
         db.session.add(self)
         return True
 
+    '''生成重设密码的检验令牌'''
     def generate_reset_token(self,expiration=3600):
         s = Serializer(current_app.config['SECRET_KEY'],expiration)
         return s.dumps({'reset':self.id})
@@ -125,6 +130,7 @@ class User(UserMixin,db.Model):
         db.session.add(self)
         return True
 
+    '''生成重设邮箱地址的检验令牌'''
     def generate_email_change_token(self,new_email,expiration=3600):
         s = Serializer(current_app.config['SECRET_KEY'],expiration)
         return s.dumps({'change_email':self.id,'new_email':new_email})
@@ -145,15 +151,18 @@ class User(UserMixin,db.Model):
         db.session.add(self)
         return True
     
+    '''检验是否有权限'''
     def can(self,permissions):
         return self.role is not None and (self.role.permissions & permissions) == permissions
  
     def is_administrator(self):
         return self.can(Permission.ADMINISTER)
-
+    
+    '''检查上次登陆时间'''
     def ping(self):
         self.last_seen = datetime.utcnow()
         db.session.add(self)
+
 
 class AnonymousUser(AnonymousUserMixin):
     def can(self,permissions):
