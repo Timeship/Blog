@@ -1,31 +1,31 @@
 #!/usr/bin/env python
 # coding=utf-8
-from datetime import datetime
-from flask import render_template,session,redirect,url_for,abort,flash
+from flask import render_template,redirect,url_for,abort,flash,request,current_app
 from flask.ext.login import login_required,current_user
 from . import main
-from .forms import NameForm,EditProfileForm,EditProfileAdminForm
+from .forms import EditProfileForm,EditProfileAdminForm,PostForm
 from .. import db
-from ..models import User,Role
+from ..models import Permission,User,Role,Post
 
-@main.route('/',methods=['GET','POST'])
-def index():
-    form = NameForm()
-    if form.validate_on_submit():
-        #...
-        return redirect(url_for('.index'))
-    return render_template('index.html',
-                           form=form,name=session.get('name'),
-                           known=session.get('known',False),
-                           current_time=datetime.utcnow())
-
+#@main.route('/',methods=['GET','POST'])
+#def index():
+#    form = NameForm()
+#    if form.validate_on_submit():
+#        #...
+#        return redirect(url_for('.index'))
+#    return render_template('index.html',
+#                           form=form,name=session.get('name'),
+#                           known=session.get('known',False),
+#                           current_time=datetime.utcnow())
+#
 '''查看用户信息'''    
 @main.route('/user/<username>')
 def user(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
         abort(404)
-    return render_template('user.html',user=user)
+    posts = user.posts.order_by(Post.timestamp.desc()).all()
+    return render_template('user.html',user=user,posts=posts)
 
 '''编辑个人资料'''
 @main.route('/edit_profile',methods=['GET','POST'])
@@ -70,7 +70,23 @@ def edit_profile_admin(id):
     form.about_me.data = user.about_me
     return render_template('edit_profile_admin.html',form=form)
 
-
+'''博客文章'''
+@main.route('/',methods=['GET','POST'])
+def index():
+    form = PostForm()
+    if current_user.can(Permission.WRITE_ARTICLES) and form.validate_on_submit():
+        post = Post(body=form.body.data,author=current_user._get_current_object())
+        #变量current_user由flask-login提供，和所有上下文变量一样，也是通过线程内的代理对象实现
+        #这个对象的表现类似用户对象，但实际上是一个轻度包装，包含真正的用户对象，数据库需要真正的用户对象
+        #因此需要_get_current_object()
+        db.session.add(post)
+        return redirect(url_for('.index'))
+    page = request.args.get('page',1,type=int)
+    pagination = Post.query.order_by(Post.timestamp.desc()).paginate(page,\
+                                        per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],error_out=False)
+    #posts = Post.query.order_by(Post.timestamp.desc()).all() #按时间逆序
+    posts = pagination.items
+    return render_template('index.html',form=form,posts=posts,pagination=pagination)
 
 
 

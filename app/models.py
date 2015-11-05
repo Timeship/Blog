@@ -9,6 +9,7 @@ from flask import current_app,request
 from . import login_manager
 from .import db
 
+'''权限设置'''
 class Permission:
     FOLLOW = 0x01
     COMMENT = 0X02
@@ -16,6 +17,7 @@ class Permission:
     MODERATE_COMMENTS = 0X08
     ADMINISTER = 0X80
 
+'''角色设置'''
 class Role(UserMixin,db.Model):
     __tablename__ = 'roles'
     id = db.Column(db.Integer,primary_key=True)
@@ -43,6 +45,7 @@ class Role(UserMixin,db.Model):
     def __repr__(self):
         return '<Role %r>'%self.name
 
+'''用户设置'''
 class User(UserMixin,db.Model):
     #...
     __tablename__ = 'users'
@@ -60,6 +63,8 @@ class User(UserMixin,db.Model):
     member_since = db.Column(db.DateTime(),default=datetime.utcnow)
     last_seen = db.Column(db.DateTime(),default=datetime.utcnow)
     avatar_hash = db.Column(db.String(32))
+    #.. .
+    posts = db.relationship('Post',backref='author',lazy='dynamic')
 
     def __repr__(self):
         return '<Role %r>'%self.username
@@ -72,16 +77,16 @@ class User(UserMixin,db.Model):
             if self.role is None:
                 self.role = Role.query.filter_by(default=True).first()
         if self.email is not None and self.avatar_hash is None:
-            self.avatar_hash = hashlib.md5(self.emial.encode('utf-8')).hexdigest()
+            self.avatar_hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
 
     '''生成头像'''
     def gravatar(self,size=100,default='identicon',rating='g'):
         if request.is_secure:
-            url = 'https://secure.gravator.com/avatar'
+            url = 'https://secure.gravatar.com/avatar'
         else:
             url = 'http://www.gravatar.com/avatar'
         hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
-        return '{url}/{hash}?s = {size}&d={default}&r={rating}'.format(url=url,hash=hash,size=size,default=default,rating=rating)
+        return '{url}/{hash}?s={size}&d={default}&r={rating}'.format(url=url,hash=hash,size=size,default=default,rating=rating)
 
     @property
     def password(self):
@@ -163,7 +168,7 @@ class User(UserMixin,db.Model):
         self.last_seen = datetime.utcnow()
         db.session.add(self)
 
-
+'''检查匿名用户'''
 class AnonymousUser(AnonymousUserMixin):
     def can(self,permissions):
         return False
@@ -176,4 +181,24 @@ login_manager.anonymous_user = AnonymousUser
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+'''博客的文章'''
+class Post(db.Model):
+    __tablename__ = 'posts'
+    id = db.Column(db.Integer,primary_key=True)
+    body = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
+    author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
+
+
+
+
+
+
+
+
+
+
+
+
 
