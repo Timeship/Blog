@@ -19,4 +19,9 @@
         {{macros.pagination_widget(pagination,'.index')}}
     </div>
 </div>
+
+{% endblock %}
+{% block scripts %}
+{{super()}}
+{{pagedown.include_pagedown()}}
 {% endblock %}
