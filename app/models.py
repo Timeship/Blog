@@ -47,6 +47,13 @@ class Role(UserMixin,db.Model):
     def __repr__(self):
         return '<Role %r>'%self.name
 
+'''关注设置'''
+class Follow(db.Model):
+    __tablename__ = 'follows'
+    follower_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    followed_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    timestamp = db.Column(db.DateTime,default=datetime.utcnow)
+
 '''用户设置'''
 class User(UserMixin,db.Model):
     #...
@@ -67,6 +74,14 @@ class User(UserMixin,db.Model):
     avatar_hash = db.Column(db.String(32))
     #.. .
     posts = db.relationship('Post',backref='author',lazy='dynamic')
+     
+    '''关注者''' 
+    followed = db.relationship('Follow',foreign_keys=[Follow.follower_id],backref=db.backref('follower',lazy='joined'),\
+                               lazy='dynamic',cascade='all,delete-orphan')
+
+    '''粉丝'''
+    followers = db.relationship('Follow',foreign_keys=[Follow.followed_id],backref=db.backref('followed',lazy='joined'),
+                               lazy='dynamic',cascade='all,delete-orphan')
 
     def __repr__(self):
         return '<Role %r>'%self.username
@@ -169,6 +184,21 @@ class User(UserMixin,db.Model):
     def ping(self):
         self.last_seen = datetime.utcnow()
         db.session.add(self)
+
+    '''关注关系的辅助方法'''
+    def follow(self,user):
+        if not self.is_following(user):
+            f = Follow(follower=self,followed=user)
+            db.session.add(f)
+    def unfollow(self,user):
+        f = self.followed.filter_by(followed_id = user.id).first()
+        if f:
+            db.session.delete(f)
+    def is_following(self,user):
+        return self.followed.filter_by(followed_id = user.id).first() is not None
+    def is_followed_by(self,user):
+        return self.follwers.filter_by(follower_id = user.id).first() is not None
+
 
 '''检查匿名用户'''
 class AnonymousUser(AnonymousUserMixin):
