@@ -54,6 +54,23 @@ class Follow(db.Model):
     followed_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
     timestamp = db.Column(db.DateTime,default=datetime.utcnow)
 
+'''评论设置'''
+class Comment(db.Model):
+    __tablename__='comments'
+    id = db.Column(db.Integer,primary_key=True)
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
+    disabled = db.Column(db.Boolean)
+    author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
+    post_id = db.Column(db.Integer,db.ForeignKey('posts.id'))
+
+    '''将评论的markdown格式转成html显示'''
+    @staticmethod
+    def on_changed_body(target,value,initiator):
+        allowed_tags = ['a','abbr','acronym','b','code','em','i','strong']
+        target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),tags=allowed_tags,strip=True))
+
 '''用户设置'''
 class User(UserMixin,db.Model):
     #...
@@ -75,14 +92,17 @@ class User(UserMixin,db.Model):
     #.. .
     posts = db.relationship('Post',backref='author',lazy='dynamic')
      
-    '''关注者''' 
+    '''关注者,此处为一个一对多关系''' 
     followed = db.relationship('Follow',foreign_keys=[Follow.follower_id],backref=db.backref('follower',lazy='joined'),\
                                lazy='dynamic',cascade='all,delete-orphan')
 
-    '''粉丝'''
+    '''粉丝,此处也为一个一对多关系'''
     followers = db.relationship('Follow',foreign_keys=[Follow.followed_id],backref=db.backref('followed',lazy='joined'),
                                lazy='dynamic',cascade='all,delete-orphan')
     
+    '''评论'''
+    comments = db.relationship('Comment',backref='author',lazy='dynamic')
+
     @property
     def followed_posts(self):
         return Post.query.join(Follow,Follow.followed_id==Post.author_id).filter(Follow.follower_id==self.id)
@@ -226,6 +246,7 @@ class Post(db.Model):
     timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
     author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
     body_html = db.Column(db.Text)
+    comments = db.relationship('Comment',backref='post',lazy='dynamic')
 
     '''on_changed_body函数注册在body字段上，是sqlalchemy的set事件监听函数，
     只要body字段改变就调用将文本渲染成html格式，结果保存在body.html中'''

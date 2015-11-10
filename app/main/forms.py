@@ -48,7 +48,10 @@ class PostForm(Form):
     body = PageDownField("What's on your mind?",validators=[Required()])
     submit = SubmitField('Submit')
 
-
+'''评论表单'''
+class CommentForm(Form):
+    body = StringField('',validators=[Required()])
+    submit = SubmitField('Submit')
 
 
 

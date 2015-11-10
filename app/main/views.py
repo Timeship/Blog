@@ -3,9 +3,9 @@
 from flask import render_template,redirect,url_for,abort,flash,request,current_app,make_response
 from flask.ext.login import login_required,current_user
 from . import main
-from .forms import EditProfileForm,EditProfileAdminForm,PostForm
+from .forms import EditProfileForm,EditProfileAdminForm,PostForm,CommentForm
 from .. import db
-from ..models import Permission,User,Role,Post
+from ..models import Permission,User,Role,Post,Comment
 
 #@main.route('/',methods=['GET','POST'])
 #def index():
@@ -96,11 +96,23 @@ def index():
     posts = pagination.items
     return render_template('index.html',form=form,posts=posts,show_followed=show_followed,pagination=pagination)
 
-'''文章的固定链接'''
+'''文章的固定链接,添加评论'''
 @main.route('/post/<int:id>',methods=['GET','POST'])
 def post(id):
     post = Post.query.get_or_404(id)
-    return render_template('post.html',posts=[post])
+    form = CommentForm()
+    if form.validate_on_submit():
+        comment = Comment(body=form.body.data,post=post,author=current_user._get_current_object())
+        db.session.add(comment)
+        flash('your comment has been published.')
+        return redirect(url_for('.post',id=post.id,page=-1))
+    page = request.args.get('page',1,type=int)
+    if page == -1:
+        page = (post.comments.count()-1)/current_app.config['FLASKY_POSTS_PER_PAGE']+1
+    pagination = post.comments.order_by(Comment.timestamp.asc()).paginate(page,per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],
+                                        error_out=False)
+    comments = pagination.items
+    return render_template('post.html',posts=[post],form=form,pagination=pagination,comments=comments)
 
 '''编辑博客文章'''
 @main.route('/edit/<int:id>',methods=['GET','POST'])
@@ -118,6 +130,7 @@ def edit(id):
     form.body.data = post.body
     return render_template('edit_post.html',form=form)
 
+'''关注用户'''
 @main.route('/follow/<username>')
 @login_required
 def follow(username):
@@ -132,6 +145,7 @@ def follow(username):
     flash('you are now following %s'%username)
     return redirect(url_for('.user',username=username))
 
+'''取关用户'''
 @main.route('/unfollow/<username>')
 @login_required
 def unfollow(username):
@@ -146,6 +160,7 @@ def unfollow(username):
     flash('you are now unfollowing %s'% username)
     return redirect(url_for('.user',username=username))
 
+'''查看某人的粉丝'''
 @main.route('/followers/<username>')
 def followers(username):
     user = User.query.filter_by(username=username).first()
@@ -157,6 +172,7 @@ def followers(username):
     follows = [{'user':item.follower,'timestamp':item.timestamp} for item in pagination.items]
     return render_template('followers.html',user=user,title="Followers of",endpoint='.followers',pagination=pagination,follows=follows)
 
+'''查看某人关注的用户'''
 @main.route('/followed_by/<username>')
 def followed_by(username):
     user = User.query.filter_by(username=username).first()
@@ -168,6 +184,7 @@ def followed_by(username):
     follows = [{'user':item.followed,'timestamp':item.timestamp} for item in pagination.items]
     return render_template('followers.html',user=user,title="Followed by",endpoint='.followers',pagination=pagination,follows=follows)
 
+'''显示所有文章'''
 @main.route('/all')
 @login_required
 def show_all():
@@ -175,12 +192,27 @@ def show_all():
     resp.set_cookie('show_followed','',max_age=30*24*60*60)
     return resp
 
+'''显示关注者的文章'''
 @main.route('/show_followed')
 @login_required
 def show_followed():
     resp = make_response(redirect(url_for('.index')))
     resp.set_cookie('show_followed','1',max_age=30*24*60*60)
     return resp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
